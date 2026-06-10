@@ -6,12 +6,23 @@ Place these files in the same project directory:
 
 ```text
 lidlessEye/
+  README.md
   ontology.yaml
-  models.py
-  pipelines.py
-  spider.py
   run.py
+  vault.py
+  suggestions.py
   requirements.txt
+  src/
+    lidlesseye/
+      models.py
+      spider.py
+      run.py
+      vault.py
+      suggestions.py
+      pipelines/
+        llm_extraction.py
+        neo4j_storage.py
+        suggestions_store.py
 ```
 
 ## Create and Activate a Virtual Environment

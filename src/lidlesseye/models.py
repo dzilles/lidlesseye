@@ -18,3 +18,4 @@ class Edge(BaseModel):
 class ExtractedGraph(BaseModel):
     nodes: list[Node] = Field(default_factory=list)
     edges: list[Edge] = Field(default_factory=list)
+

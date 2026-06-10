@@ -21,3 +21,4 @@ class PublicSandboxSpider(scrapy.Spider):
             "url": response.url,
             "raw_text": raw_text[: self.max_chars],
         }
+
