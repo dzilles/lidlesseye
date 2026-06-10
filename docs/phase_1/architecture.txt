@@ -1,0 +1,55 @@
+ADR 001: Primary Programming Language
+
+    Status: Accepted
+
+    Context: The project requires a language capable of handling web scraping, data manipulation, and eventually complex Natural Language Processing (NLP) and graph database interactions.
+
+    Decision: We will use Python.
+
+    Consequences:
+
+        Positive: Python has the most mature ecosystem for data engineering (Scrapy) and machine learning (spaCy, transformers). The official neo4j driver is robust.
+
+        Negative: Python is an interpreted language and inherently slower than compiled languages like Go or Rust. However, since the primary bottleneck in OSINT tools is usually network I/O (waiting for websites to load) rather than raw CPU calculation, this is an acceptable trade-off.
+
+ADR 002: Data Extraction Framework
+
+    Status: Accepted
+
+    Context: We need a tool to extract HTML from web sources. We could use a lightweight library like BeautifulSoup, but we anticipate needing to scrape thousands of pages concurrently in Phase 4.
+
+    Decision: We will use Scrapy.
+
+    Consequences:
+
+        Positive: Scrapy is built on an asynchronous framework (Twisted), allowing it to process multiple requests simultaneously without blocking. It forces a clean separation of concerns (Spiders for extraction, Pipelines for data saving).
+
+        Negative: It introduces a steeper initial learning curve and more boilerplate code compared to writing a simple procedural script.
+
+ADR 003: Core Storage System (Graph)
+
+    Status: Accepted
+
+    Context: The core value of LidlessEye is identifying hidden networks and relationships (e.g., connections between entities). Relational databases (SQL) require complex, slow JOIN operations to map deep networks.
+
+    Decision: We will use Neo4j (Community Edition), deployed locally via Docker.
+
+    Consequences:
+
+        Positive: Native graph storage and the Cypher query language allow for highly intuitive relationship mapping. Using Docker prevents polluting the host operating system with Java dependencies.
+
+        Negative: Neo4j has a relatively high baseline RAM requirement compared to simple document stores.
+
+ADR 004: Environment and Dependency Management
+
+    Status: Accepted
+
+    Context: We need to ensure that the Python packages used for this project do not conflict with global system packages or other projects.
+
+    Decision: We will use Python's built-in venv (Virtual Environment) module.
+
+    Consequences:
+
+        Positive: It is built into Python 3, requires no extra third-party tools (like Conda or Poetry) to install, and is universally understood by other developers.
+
+        Negative: It is purely local; to share the exact environment state, we must manually maintain a requirements.txt file.

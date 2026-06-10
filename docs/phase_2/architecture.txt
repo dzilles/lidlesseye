@@ -1,0 +1,95 @@
+Architecture Decision Records (ADR) & Interface Contracts
+
+Project: LidlessEye
+
+Phase: 2 (The Universal Brain)
+
+Date: June 2026
+Part 1: Architecture Decisions
+ADR 005: LLM-Driven Structured Extraction
+
+    Context: Traditional NLP libraries (like spaCy) require strict grammatical structures and extensive retraining to understand slang, dark web jargon, or implied context.
+
+    Decision: We will replace rigid NLP with an LLM (e.g., OpenAI gpt-4o-mini or a local equivalent) wrapped with the instructor library to enforce strict JSON/Pydantic outputs.
+
+    Consequences: * Positive: The pipeline can instantly understand any domain jargon without retraining.
+
+        Positive: The "Structured Core / Flexible Shell" allows us to capture unpredictable metadata gracefully.
+
+        Negative: Introduces higher latency per page and potential API costs compared to local, traditional NLP.
+
+ADR 006: Schema-Agnostic Graph Generation (Ontology-Driven)
+
+    Context: Hardcoding entity types (e.g., class Person, class Location) forces developers to rewrite the Python code every time the investigation target changes (e.g., pivoting from Human Trafficking to Corporate Fraud).
+
+    Decision: The Python pipeline will be completely schema-agnostic. It will only understand universal Nodes and Edges. The specific entities we want to extract will be defined in an external ontology.yaml file.
+
+    Consequences:
+
+        Positive: Complete decoupling of domain logic from infrastructure logic. Non-technical analysts can configure the tool.
+
+        Positive: Neo4j ingestion becomes a single, universal loop.
+
+ADR 007: Modular File Structure
+
+    Context: As the pipeline grows in complexity, a single-file script (pipeline.py) becomes unmaintainable and impossible to unit test.
+
+    Decision: We will enforce a strict separation of concerns across multiple files:
+
+        ontology.yaml: Domain definitions.
+
+        models.py: Data contracts (Pydantic).
+
+        spider.py: Ingestion logic.
+
+        pipelines.py: Processing and Storage logic.
+
+        run.py: Orchestration.
+
+Part 2: Interface Contracts
+
+To ensure our pipeline layers can communicate safely, we strictly enforce the following Data Contracts using Pydantic. If a layer violates these contracts, the system will fail gracefully rather than corrupting the database.
+Interface 1: The Config Loader → Extraction Pipeline
+
+    Contract: The pipeline must receive a valid string representing the allowed Node Labels and context.
+
+    Format (YAML):
+    YAML
+
+    profiles:
+      cyber_threats:
+        context_description: "Extract intelligence related to cybercrime."
+        allowed_labels: ["Hacker", "Malware", "CryptoWallet", "IP_Address", "Forum"]
+
+Interface 2: Spider Layer → LLM Processing Layer
+
+    Contract: The Spider must provide the bare minimum context required for extraction. It does not perform any data structuring.
+
+    Format (Standard Python Dictionary):
+    JSON
+
+    {
+      "source_url": "https://example.com/target",
+      "raw_text": "The full unstructured text payload..."
+    }
+
+Interface 3: LLM Processing Layer → Neo4j Storage Layer
+
+    Contract: The Neo4j pipeline will only accept the universal ExtractedGraph Pydantic model. It expects guaranteed lists of Nodes and Edges.
+
+    Format (Pydantic Schema):
+    Python
+
+    class Node(BaseModel):
+        id: str 
+        label: str # Must be from the YAML allowed_labels
+        properties: Dict[str, Any] # Flexible metadata bucket
+
+    class Edge(BaseModel):
+        source_id: str
+        target_id: str
+        relationship: str
+
+    class ExtractedGraph(BaseModel):
+        nodes: List[Node]
+        edges: List[Edge]

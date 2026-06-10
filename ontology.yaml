@@ -1,0 +1,35 @@
+profiles:
+  cyber_threats:
+    context_description: >
+      Extract cyber threat intelligence entities from security reports, incident
+      writeups, malware analyses, blockchain abuse reports, and infrastructure
+      indicators. Prefer concrete entities that can be represented as graph
+      nodes and relationships.
+    allowed_node_labels:
+      - Hacker
+      - Malware
+      - CryptoWallet
+      - IP_Address
+    allowed_relationships:
+      - USES
+      - CONTROLS
+      - TARGETS
+      - TRANSFERS_TO
+      - CONNECTED_TO
+
+  corporate_networks:
+    context_description: >
+      Extract corporate, financial, and organizational relationships from public
+      business descriptions, regulatory text, news articles, and company
+      profiles. Prefer named business entities, people, accounts, and locations.
+    allowed_node_labels:
+      - Company
+      - Executive
+      - BankAccount
+      - Location
+    allowed_relationships:
+      - EMPLOYS
+      - OWNS
+      - LOCATED_IN
+      - TRANSFERS_TO
+      - ASSOCIATED_WITH

@@ -1,0 +1,17 @@
+name: historical_crime_syndicate_connections
+description: >
+  Example Project LidlessEye run that checks public Wikipedia pages for
+  historical relationships among crime syndicates, people, places, and events.
+
+ontology_file: ontology.yaml
+profile: historical_crime_syndicates
+llm_model: google/gemini-2.5-flash-lite
+suggestions_file: ontology_suggestions.json
+
+source_urls:
+  - https://en.wikipedia.org/wiki/Five_Families
+  - https://en.wikipedia.org/wiki/Sicilian_Mafia
+  - https://en.wikipedia.org/wiki/Irish_Mob
+
+spider:
+  max_chars: 9000

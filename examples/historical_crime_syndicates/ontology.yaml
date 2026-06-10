@@ -1,0 +1,27 @@
+profiles:
+  historical_crime_syndicates:
+    context_description: >
+      Extract historically documented relationships from public encyclopedia
+      articles about crime syndicates, organized crime groups, named historical
+      figures, locations, and events. Treat the source as historical and
+      descriptive. Do not infer current operational activity or unsupported
+      criminal conduct beyond what appears in the text.
+    allowed_node_labels:
+      - CrimeSyndicate
+      - Person
+      - Organization
+      - Location
+      - Event
+    allowed_relationships:
+      - MEMBER_OF
+      - LED_BY
+      - ALLIED_WITH
+      - RIVAL_OF
+      - OPERATED_IN
+      - PARTICIPATED_IN
+      - CONNECTED_TO
+      - AUTHORED
+      - DEPICTS
+      - FEATURES
+      - INFLUENCED_BY
+      - PARDONED_BY

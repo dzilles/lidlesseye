@@ -1,0 +1,6 @@
+scrapy>=2.11
+neo4j>=5.20
+instructor[google-genai]>=1.7
+pydantic>=2.7
+PyYAML>=6.0
+jsonref>=1.1
