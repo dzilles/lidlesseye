@@ -19,3 +19,7 @@ class ExtractedGraph(BaseModel):
     nodes: list[Node] = Field(default_factory=list)
     edges: list[Edge] = Field(default_factory=list)
 
+
+class ScrapedArticle(BaseModel):
+    url: str = Field(..., description="Canonical source URL for the scraped article.")
+    raw_text: str = Field(..., description="Raw article text extracted by the spider.")

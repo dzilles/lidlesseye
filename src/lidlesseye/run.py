@@ -72,8 +72,7 @@ def main():
     process = CrawlerProcess(
         settings={
             "ITEM_PIPELINES": {
-                "lidlesseye.pipelines.LLMExtractionPipeline": 300,
-                "lidlesseye.pipelines.Neo4jStoragePipeline": 400,
+                "lidlesseye.pipelines.RabbitMQPublisherPipeline": 300,
             },
             "ONTOLOGY_FILE": ontology_file,
             "ONTOLOGY_PROFILE": profile,
@@ -82,6 +81,8 @@ def main():
             "NEO4J_URI": os.getenv("NEO4J_URI", "bolt://localhost:7687"),
             "NEO4J_USER": os.getenv("NEO4J_USER", "neo4j"),
             "NEO4J_PASSWORD": os.getenv("NEO4J_PASSWORD", "password"),
+            "RABBITMQ_URL": os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/%2F"),
+            "RABBITMQ_QUEUE": os.getenv("RABBITMQ_QUEUE", "raw_scrapes"),
             "LOG_LEVEL": "INFO",
             "ROBOTSTXT_OBEY": True,
             "TELNETCONSOLE_ENABLED": False,
@@ -94,4 +95,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

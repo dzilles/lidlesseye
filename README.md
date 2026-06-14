@@ -1,16 +1,17 @@
 # Project LidlessEye
 
 Project LidlessEye is a schema-agnostic knowledge graph pipeline built with
-Scrapy, Gemini through Instructor, Pydantic, and Neo4j.
+Scrapy, RabbitMQ, Gemini through Instructor, Pydantic, and Neo4j.
 
-The pipeline scrapes public web pages, asks an LLM to extract graph-shaped
-entities and relationships constrained by an ontology YAML file, validates the
-result with Pydantic, and stores the graph in Neo4j.
+The pipeline scrapes public web pages, publishes raw scrape messages to
+RabbitMQ, lets scalable workers extract graph-shaped entities and relationships
+with an LLM, validates the result with Pydantic, and stores the graph in Neo4j.
 
 ## Architecture
 
 ```text
 Scrapy spider
+  -> RabbitMQ raw_scrapes queue
   -> LLM extraction pipeline
   -> ontology normalization and suggestions
   -> Neo4j storage pipeline
@@ -22,6 +23,8 @@ Key behavior:
 - The graph envelope is stable: `ExtractedGraph(nodes, edges)`.
 - Unknown relationship types do not crash the run.
 - Unknown relationships are recorded with counters and replay context.
+- Workers use manual RabbitMQ acknowledgements.
+- Neo4j writes are idempotent through `MERGE` plus a unique source URL constraint.
 - Gemini API keys are loaded from a local vault outside the repo.
 
 ## Project Layout
@@ -29,15 +32,19 @@ Key behavior:
 ```text
 .
   run.py                         # Root CLI wrapper
+  worker.py                      # Root worker CLI wrapper
   vault.py                       # Root vault CLI wrapper
   suggestions.py                 # Root suggestions CLI wrapper
+  docker-compose.yml             # Neo4j and RabbitMQ infrastructure
   ontology.yaml                  # Default ontology profiles
   requirements.txt
   SETUP.md
+  SETUP_PHASE3.md
   README.md
   src/
     lidlesseye/
       run.py
+      worker.py
       vault.py
       suggestions.py
       models.py
@@ -47,6 +54,7 @@ Key behavior:
       pipelines/
         llm_extraction.py
         neo4j_storage.py
+        rabbitmq_publisher.py
         suggestions_store.py
   examples/
     historical_crime_syndicates/
@@ -71,13 +79,27 @@ Store your Gemini API key once:
 python vault.py set-google-key
 ```
 
-Start Neo4j:
+Start Neo4j and RabbitMQ:
 
 ```bash
-docker run --name lidlesseye-neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:latest
+docker compose up -d
 ```
 
-Run the historical crime syndicate example:
+Create the source URL uniqueness constraint:
+
+```cypher
+CREATE CONSTRAINT scraped_article_url IF NOT EXISTS
+FOR (a:ScrapedArticle)
+REQUIRE a.url IS UNIQUE;
+```
+
+Run one or more workers:
+
+```bash
+python worker.py --project-file examples/historical_crime_syndicates/project.yaml
+```
+
+Run the historical crime syndicate spider publisher:
 
 ```bash
 python run.py --project-file examples/historical_crime_syndicates/project.yaml
@@ -109,7 +131,7 @@ python suggestions.py replay \
 ## Notes
 
 - `pipeline.py` is the original Phase 1 single-file walking skeleton.
-- The production-oriented Phase 2 implementation lives under `src/lidlesseye`.
+- The production-oriented Phase 3 implementation lives under `src/lidlesseye`.
+- Full distributed setup instructions are in `SETUP_PHASE3.md`.
 - Local secrets are stored outside the repository at
   `~/.config/lidlesseye/secrets.yaml`.
-

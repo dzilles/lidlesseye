@@ -1,4 +1,5 @@
 from neo4j import GraphDatabase
+from neo4j.exceptions import ConstraintError
 
 from lidlesseye.cypher import validate_cypher_identifier
 from lidlesseye.models import ExtractedGraph
@@ -42,43 +43,97 @@ class Neo4jStoragePipeline:
             self.driver = None
 
     def process_item(self, item, spider):
-        graph = item if isinstance(item, ExtractedGraph) else ExtractedGraph.model_validate(item)
+        source_url = None
+        if isinstance(item, dict) and "graph" in item:
+            source_url = item.get("source_url")
+            graph = (
+                item["graph"]
+                if isinstance(item["graph"], ExtractedGraph)
+                else ExtractedGraph.model_validate(item["graph"])
+            )
+        else:
+            graph = item if isinstance(item, ExtractedGraph) else ExtractedGraph.model_validate(item)
 
         if self.driver is None:
             spider.logger.warning("Skipping graph because Neo4j connection is unavailable")
             return graph
 
-        with self.driver.session() as session:
-            for node in graph.nodes:
-                if node.label not in self.allowed_labels:
-                    raise ValueError(f"Node label is not allowed by ontology: {node.label}")
-
-                label = validate_cypher_identifier(node.label, "node label")
-                query = f"MERGE (n:{label} {{id: $id}}) SET n += $properties"
-                properties = {"id": node.id, **node.properties}
-                session.run(query, id=node.id, properties=properties)
-
-            for edge in graph.edges:
-                if edge.relationship not in self.allowed_relationships:
-                    raise ValueError(f"Relationship is not allowed by ontology: {edge.relationship}")
-
-                relationship = validate_cypher_identifier(edge.relationship, "relationship type")
-                query = (
-                    "MATCH (source {id: $source_id}) "
-                    "MATCH (target {id: $target_id}) "
-                    f"MERGE (source)-[r:{relationship}]->(target)"
-                )
-                session.run(
-                    query,
-                    source_id=edge.source_id,
-                    target_id=edge.target_id,
-                )
-
-        spider.logger.info("Stored graph in Neo4j: %d nodes, %d edges", len(graph.nodes), len(graph.edges))
+        self.store_graph(graph, source_url=source_url, logger=spider.logger)
         return graph
 
-    def close_spider(self, spider):
+    def connect(self) -> None:
+        self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
+        self.driver.verify_connectivity()
+
+    def store_graph(self, graph: ExtractedGraph, source_url: str | None = None, logger=None) -> bool:
+        if self.driver is None:
+            self.connect()
+
+        try:
+            with self.driver.session() as session:
+                session.execute_write(self._write_graph_transaction, graph, source_url)
+        except ConstraintError as exc:
+            if source_url:
+                if logger:
+                    logger.info("Duplicate source URL already processed, acknowledging message: %s", source_url)
+                return True
+            raise exc
+
+        if logger:
+            logger.info("Stored graph in Neo4j: %d nodes, %d edges", len(graph.nodes), len(graph.edges))
+        return True
+
+    def _write_graph_transaction(self, tx, graph: ExtractedGraph, source_url: str | None) -> None:
+        if source_url:
+            tx.run(
+                """
+                CREATE (article:ScrapedArticle {url: $url})
+                SET article.processed_at = datetime()
+                """,
+                url=source_url,
+            )
+
+        for node in graph.nodes:
+            if node.label not in self.allowed_labels:
+                raise ValueError(f"Node label is not allowed by ontology: {node.label}")
+
+            label = validate_cypher_identifier(node.label, "node label")
+            query = f"MERGE (n:{label} {{id: $id}}) SET n += $properties"
+            properties = {"id": node.id, **node.properties}
+            tx.run(query, id=node.id, properties=properties)
+
+            if source_url:
+                tx.run(
+                    (
+                        "MATCH (article:ScrapedArticle {url: $url}) "
+                        f"MATCH (n:{label} {{id: $id}}) "
+                        "MERGE (article)-[:MENTIONS]->(n)"
+                    ),
+                    url=source_url,
+                    id=node.id,
+                )
+
+        for edge in graph.edges:
+            if edge.relationship not in self.allowed_relationships:
+                raise ValueError(f"Relationship is not allowed by ontology: {edge.relationship}")
+
+            relationship = validate_cypher_identifier(edge.relationship, "relationship type")
+            query = (
+                "MATCH (source {id: $source_id}) "
+                "MATCH (target {id: $target_id}) "
+                f"MERGE (source)-[r:{relationship}]->(target)"
+            )
+            tx.run(
+                query,
+                source_id=edge.source_id,
+                target_id=edge.target_id,
+            )
+
+    def close(self) -> None:
         if self.driver is not None:
             self.driver.close()
-            spider.logger.info("Neo4j connection closed")
+            self.driver = None
 
+    def close_spider(self, spider):
+        self.close()
+        spider.logger.info("Neo4j connection closed")

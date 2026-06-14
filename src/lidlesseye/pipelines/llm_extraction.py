@@ -1,6 +1,6 @@
 import instructor
 
-from lidlesseye.models import ExtractedGraph
+from lidlesseye.models import ExtractedGraph, ScrapedArticle
 from lidlesseye.ontology import load_ontology_profile
 from lidlesseye.pipelines.suggestions_store import RelationshipSuggestionStore
 
@@ -34,9 +34,11 @@ class LLMExtractionPipeline:
         )
 
     def process_item(self, item, spider):
-        raw_text = item.get("raw_text", "").strip()
-        source_url = item.get("url", "")
+        article = ScrapedArticle.model_validate(item)
+        return self.extract(article, logger=spider.logger)
 
+    def extract(self, article: ScrapedArticle, logger=None) -> ExtractedGraph:
+        raw_text = article.raw_text.strip()
         if not raw_text:
             return ExtractedGraph()
 
@@ -59,7 +61,7 @@ Ontology rules:
 """.strip()
 
         user_prompt = f"""
-Source URL: {source_url}
+Source URL: {article.url}
 
 Extract a knowledge graph from this text:
 {raw_text}
@@ -74,9 +76,9 @@ Extract a knowledge graph from this text:
             max_retries=2,
         )
 
-        return self._normalize_graph(graph, source_url, spider)
+        return self._normalize_graph(graph, article.url, logger)
 
-    def _normalize_graph(self, graph: ExtractedGraph, source_url: str, spider) -> ExtractedGraph:
+    def _normalize_graph(self, graph: ExtractedGraph, source_url: str, logger=None) -> ExtractedGraph:
         allowed_labels = set(self.profile.get("allowed_node_labels", []))
         allowed_relationships = set(self.profile.get("allowed_relationships", []))
         relationship_aliases = self.profile.get("relationship_aliases", {})
@@ -109,11 +111,12 @@ Extract a knowledge graph from this text:
             unknown_counts = {}
             for edge in unknown_edges:
                 unknown_counts[edge.relationship] = unknown_counts.get(edge.relationship, 0) + 1
-            spider.logger.warning(
+            message = (
                 "Recorded and skipped %d unknown relationship edges for ontology review: %s",
                 len(unknown_edges),
                 unknown_counts,
             )
+            if logger:
+                logger.warning(*message)
 
         return graph.model_copy(update={"edges": valid_edges})
-
